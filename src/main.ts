@@ -77,6 +77,8 @@ function frame(now: number) {
   if (ui.screen === "none" && !paused) {
     if (world.status === "levelup" && world.pendingCards) {
       ui.showLevelUp(world.pendingCards);
+    } else if (world.status === "mechpick" && world.pendingMechCards) {
+      ui.showMechPick(world.pendingMechCards);
     } else if (world.status === "gameover") {
       ui.showEnd(false);
     } else if (world.status === "win") {

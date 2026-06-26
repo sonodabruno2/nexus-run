@@ -3,6 +3,7 @@ import { CHARACTERS } from "./content/characters";
 import { WEAPONS } from "./content/weapons";
 import { PASSIVES } from "./content/passives";
 import type { Card } from "./player";
+import type { MechUpgradeDef } from "./content/mech";
 import {
   META_UPGRADES,
   buyUpgrade,
@@ -11,7 +12,7 @@ import {
 } from "./meta";
 import { audio } from "./audio";
 
-export type Screen = "none" | "menu" | "shop" | "levelup" | "end" | "pause";
+export type Screen = "none" | "menu" | "shop" | "levelup" | "mechpick" | "end" | "pause";
 
 export class UI {
   overlay: HTMLDivElement;
@@ -166,6 +167,33 @@ export class UI {
       };
       this.overlay.appendChild(rb);
     }
+  }
+
+  // ----------------------------- escolha de upgrade do MECH (baú raro)
+  showMechPick(cards: MechUpgradeDef[]) {
+    this.show();
+    this.screen = "mechpick";
+    this.overlay.innerHTML = "";
+    const title = el("div", "title mech", "⚙ NÚCLEO DO MECH");
+    this.overlay.append(
+      title,
+      el("div", "subtitle", "Baú raro recuperado. Escolha um aprimoramento para o seu mech."),
+    );
+    const cardsWrap = el("div", "cards");
+    for (const u of cards) {
+      const node = el("div", "card mech");
+      node.innerHTML = `
+        <div class="bar" style="background:#5cf2ff"></div>
+        <div class="tag">⚙ Mech</div>
+        <h3>${u.name}</h3>
+        <p>${u.desc}</p>`;
+      node.onclick = () => {
+        this.world.chooseMechUpgrade(u);
+        this.hide();
+      };
+      cardsWrap.appendChild(node);
+    }
+    this.overlay.appendChild(cardsWrap);
   }
 
   // ----------------------------- fim de run

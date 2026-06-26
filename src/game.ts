@@ -18,7 +18,7 @@ import {
 } from "./types";
 import { WEAPONS } from "./content/weapons";
 import { ENEMIES } from "./content/enemies";
-import { MECH_UPGRADES, MECH_BASE_DAMAGE, MECH_BASE_CD, MECH_BASE_HP } from "./content/mech";
+import { pickMechChoices, MECH_BASE_DAMAGE, MECH_BASE_CD, MECH_BASE_HP, type MechUpgradeDef } from "./content/mech";
 import { clamp, dist2, lerp } from "./core/math";
 import { rng } from "./core/rng";
 import { Input } from "./core/input";
@@ -69,7 +69,7 @@ const ZFAR = 1 / FAR_SCALE;
 const PROJ_C = (NEAR_Y - FAR_Y) / (1 - FAR_SCALE);
 const HORIZON = NEAR_Y - PROJ_C;
 
-export type GameStatus = "playing" | "levelup" | "gameover" | "win";
+export type GameStatus = "playing" | "levelup" | "mechpick" | "gameover" | "win";
 
 export class World {
   ctx: CanvasRenderingContext2D;
@@ -97,6 +97,10 @@ export class World {
   kills = 0;
   status: GameStatus = "playing";
   pendingCards: Card[] | null = null;
+  // escolha de upgrade do MECH (vinda de baú): cartas + fila de itens coletados
+  pendingMechCards: MechUpgradeDef[] | null = null;
+  pendingMechPicks = 0;
+  nextChestAt = 25; // tempo (s) a partir do qual um baú pode aparecer (raro)
   spawnTimer = 0;
   bossSpawned = false;
   bossApproaching = false; // fim da progressão: para de spawnar, espera limpar
@@ -110,7 +114,7 @@ export class World {
   // MECH (robô-dono): vida própria + bônus roguelike + estado do poder/visual
   mech: { up: MechBonus; powerTimer: number; hp: number; maxHp: number } =
     { up: baseMechBonus(), powerTimer: MECH_BASE_CD, hp: MECH_BASE_HP, maxHp: MECH_BASE_HP };
-  mechBeamY = 0;
+  mechBeamYs: number[] = []; // faixas Y dos feixes ativos (1+ com Feixe Duplo)
   mechBeamTimer = 0;
   mechFlash = 0;
   private chestThisFormation = false;
@@ -153,12 +157,15 @@ export class World {
     this.boss = null;
     this.status = "playing";
     this.pendingCards = null;
+    this.pendingMechCards = null;
+    this.pendingMechPicks = 0;
+    this.nextChestAt = 25;
     // MECH: vida própria + bônus permanentes (loja)
     const mechHp = MECH_BASE_HP + 30 * upgradeLevel(this.meta, "mech_armor");
     this.mech = { up: baseMechBonus(), powerTimer: MECH_BASE_CD, hp: mechHp, maxHp: mechHp };
     this.mech.up.powerDamageMul *= 1 + 0.12 * upgradeLevel(this.meta, "mech_cannon");
     this.mech.up.powerRateMul *= 1 - 0.08 * upgradeLevel(this.meta, "mech_reactor");
-    this.mechBeamTimer = 0; this.mechFlash = 0;
+    this.mechBeamYs = []; this.mechBeamTimer = 0; this.mechFlash = 0;
     this.moveTargetActive = false;
     // drone inicial pra Rook já entrar com algo visível
     this.syncDrones();
@@ -168,6 +175,8 @@ export class World {
 
   update(dt: number) {
     if (this.status !== "playing") return;
+    // baú coletado → abre a tela de escolha do upgrade do mech (pausa)
+    if (this.pendingMechPicks > 0) { this.openMechPick(); return; }
     dt = Math.min(dt, 1 / 30) * GAME_SPEED; // 25% mais lento (escala tudo de uma vez)
     this.time += dt;
     this.shake = Math.max(0, this.shake - dt * 60);
@@ -315,22 +324,28 @@ export class World {
 
   private mechPower() {
     const m = this.mech;
-    const y = this.player.y;
     const band = 44 * m.up.powerAreaMul;
     const dmg = MECH_BASE_DAMAGE * m.up.powerDamageMul * (1 + this.time * 0.003);
-    for (const e of this.enemies) {
-      if (e.dead) continue;
-      if (e.x > this.cameraX - 60 && Math.abs(e.y - y) < band + e.radius) {
-        this.damageEnemy(e, dmg, false);
-        e.vx += 200; // o feixe varre os inimigos pra direita (cinético)
+    const beams = Math.max(1, Math.round(m.up.beams));
+    // feixes espaçados em profundidade, centrados no jogador
+    this.mechBeamYs = [];
+    for (let i = 0; i < beams; i++) {
+      const off = beams === 1 ? 0 : (i - (beams - 1) / 2) * (band * 1.9 + 14);
+      const y = clamp(this.player.y + off, WALL_TOP + 12, WALL_BOT - 12);
+      this.mechBeamYs.push(y);
+      for (const e of this.enemies) {
+        if (e.dead) continue;
+        if (e.x > this.cameraX - 60 && Math.abs(e.y - y) < band + e.radius) {
+          this.damageEnemy(e, dmg, false);
+          e.vx += 200; // o feixe varre os inimigos pra direita (cinético)
+        }
       }
     }
-    this.mechBeamY = y;
     this.mechBeamTimer = 0.5;
     this.mechFlash = 0.5;
     this.shake = Math.max(this.shake, 9);
     audio.ult();
-    this.texts.push({ x: this.player.x, y: WALL_TOP + 26, oy: 0, vy: -8, life: 1.4, maxLife: 1.4, text: "⚙ MECH — FEIXE", color: "#5cf2ff", size: 18 });
+    this.texts.push({ x: this.player.x, y: WALL_TOP + 26, oy: 0, vy: -8, life: 1.4, maxLife: 1.4, text: beams > 1 ? `⚙ MECH — ${beams}× FEIXE` : "⚙ MECH — FEIXE", color: "#5cf2ff", size: 18 });
   }
 
   // -------------------------------------------------------- armas
@@ -1117,16 +1132,11 @@ export class World {
     } else if (pk.kind === "heal") {
       p.hp = Math.min(p.maxHp, p.hp + pk.value);
     } else if (pk.kind === "mech") {
-      // item de baú: melhora uma característica roguelike do MECH
-      const u = rng.pick(MECH_UPGRADES);
-      u.apply(this.mech.up);
-      // recalcula a vida máx do mech (blindagem) e CURA pelo ganho
-      const newMax = MECH_BASE_HP + 30 * upgradeLevel(this.meta, "mech_armor") + this.mech.up.hpAdd;
-      this.mech.hp += Math.max(0, newMax - this.mech.maxHp);
-      this.mech.maxHp = newMax;
+      // núcleo de baú (raro): enfileira uma ESCOLHA de upgrade do mech
+      this.pendingMechPicks++;
       this.mechFlash = 0.7;
       audio.level();
-      this.floatNumber(p.x, p.y - 34, `⚙ MECH: ${u.name}`, "#5cf2ff", 16);
+      this.floatNumber(p.x, p.y - 34, "⚙ NÚCLEO DO MECH", "#5cf2ff", 17);
     }
   }
 
@@ -1148,6 +1158,26 @@ export class World {
     this.player.rerolls--;
     this.pendingCards = generateCards(this.player, this.pendingCards.length);
     return true;
+  }
+
+  // ---- ESCOLHA de upgrade do MECH (vinda de baú) ----
+  private openMechPick() {
+    this.pendingMechCards = pickMechChoices(3, () => rng.next());
+    this.status = "mechpick";
+    audio.level();
+  }
+
+  chooseMechUpgrade(u: MechUpgradeDef) {
+    u.apply(this.mech.up);
+    // recalcula a vida máx do mech (blindagem) e CURA pelo ganho
+    const newMax = MECH_BASE_HP + 30 * upgradeLevel(this.meta, "mech_armor") + this.mech.up.hpAdd;
+    this.mech.hp += Math.max(0, newMax - this.mech.maxHp);
+    this.mech.maxHp = newMax;
+    this.mechFlash = 0.7;
+    this.floatNumber(this.player.x, this.player.y - 34, `⚙ ${u.name}`, "#5cf2ff", 16);
+    this.pendingMechCards = null;
+    this.pendingMechPicks = Math.max(0, this.pendingMechPicks - 1);
+    this.status = "playing"; // se ainda houver baús na fila, update() reabre
   }
 
   // -------------------------------------------------------- ultimate
@@ -1312,9 +1342,11 @@ export class World {
   }
 
   private spawnCube(x: number, y: number, intensity: number) {
-    // baú guardado: no máx 1 por formação, cercado pelos inimigos
-    if (!this.chestThisFormation && this.time > 12 && rng.chance(0.03 + intensity * 0.025)) {
+    // baú guardado RARO: só depois do cooldown (nextChestAt); ao sair, agenda
+    // o próximo bem distante. Cada baú vira uma ESCOLHA forte de upgrade.
+    if (!this.chestThisFormation && this.time >= this.nextChestAt && rng.chance(0.10)) {
       this.chestThisFormation = true;
+      this.nextChestAt = this.time + 42 + rng.next() * 26; // ~42–68s até o próximo
       this.spawnEnemyAt(ENEMIES["chest"], x, y, false);
       return;
     }
@@ -1691,18 +1723,20 @@ export class World {
     ctx.beginPath(); ctx.moveTo(top.sx, top.sy); ctx.lineTo(bot.sx, bot.sy); ctx.stroke();
     ctx.restore();
 
-    // FEIXE do poder do mech (ativo)
+    // FEIXE(S) do poder do mech (ativo)
     if (this.mechBeamTimer > 0) {
       const a = Math.max(0, this.mechBeamTimer / 0.5);
-      const by = this.project(this.player.x, this.mechBeamY).sy;
       ctx.save();
       ctx.globalAlpha = a;
       ctx.shadowColor = "#5cf2ff"; ctx.shadowBlur = 24;
-      const grad = ctx.createLinearGradient(0, by, VW, by);
-      grad.addColorStop(0, "rgba(255,255,255,0.95)");
-      grad.addColorStop(1, "rgba(92,242,255,0.08)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, by - (10 * a + 4), VW, 20 * a + 8);
+      for (const wy of this.mechBeamYs) {
+        const by = this.project(this.player.x, wy).sy;
+        const grad = ctx.createLinearGradient(0, by, VW, by);
+        grad.addColorStop(0, "rgba(255,255,255,0.95)");
+        grad.addColorStop(1, "rgba(92,242,255,0.08)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, by - (10 * a + 4), VW, 20 * a + 8);
+      }
       ctx.restore();
     }
   }

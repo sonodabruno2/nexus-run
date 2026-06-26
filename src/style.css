@@ -116,6 +116,10 @@ canvas { display: block; image-rendering: pixelated; }
 .card h3 { font-size: 17px; }
 .card p { font-size: 12px; color: var(--muted); line-height: 1.4; flex: 1; }
 .card.fusion { border-color: var(--gold); box-shadow: 0 0 22px rgba(255,214,92,.25); }
+.card.mech { border-color: rgba(92,242,255,.5); box-shadow: 0 0 22px rgba(92,242,255,.18); }
+.card.mech:hover { box-shadow: 0 0 30px rgba(92,242,255,.4); }
+.card.mech .tag { color: #5cf2ff; }
+.title.mech { background: linear-gradient(90deg, #5cf2ff, #2f6cff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 30px rgba(92,242,255,.35); }
 .card .bar { height: 4px; border-radius: 2px; }
 
 .shop { max-width: 720px; width: 100%; }

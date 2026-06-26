@@ -296,10 +296,11 @@ export interface MechBonus {
   hpAdd: number; // +vida máxima do mech
   regen: number; // vida/seg (do personagem)
   magnetMul: number; // alcance de coleta
+  beams: number; // nº de feixes que o poder dispara
 }
 
 export function baseMechBonus(): MechBonus {
-  return { powerDamageMul: 1, powerRateMul: 1, powerAreaMul: 1, hpAdd: 0, regen: 0, magnetMul: 1 };
+  return { powerDamageMul: 1, powerRateMul: 1, powerAreaMul: 1, hpAdd: 0, regen: 0, magnetMul: 1, beams: 1 };
 }
 
 // XP/cura ficam CAÍDAS no chão; ao entrar no raio do ímã, são ATRAÍDAS
