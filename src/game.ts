@@ -51,6 +51,11 @@ const GAME_SPEED = 0.75; // jogo 25% mais lento (escala o passo da simulação)
 const BASE_PICKUP_RANGE = 58; // raio base do "ímã" pra coletar XP do chão
 const DYING_MAX = 0.34; // duração da animação de morte (corpo voa com o empurrão e some)
 const MECH_LINE = 30; // tela-x: inimigo que chega aqui bate no mech e causa dano
+const FORMATION_ROWS = 6; // fase 1: formações só com 6 fileiras de cubos
+// zoom de câmera (mais próximo): escala o render do mundo em torno de um foco
+const ZOOM = 1.25;
+const ZFX = VW * 0.38; // foco à esquerda → mantém o mech mais visível
+const ZFY = VH * 0.56;
 
 // ---- Projeção em PERSPECTIVA (a faixa Y vira PROFUNDIDADE) ----
 // y=WALL_TOP = fundo (longe, pequeno, no alto); y=WALL_BOT = frente (perto,
@@ -208,9 +213,11 @@ export class World {
       if (pressed || p.ultReadyTime > 12) this.activateUlt();
     }
 
-    // mira pelo mouse: des-projeta o ponteiro (tela → mundo) e mira de lá
+    // mira pelo mouse: des-ZOOM o ponteiro, des-projeta (tela → mundo) e mira de lá
     const ptr = this.input.pointer();
-    const aw = this.unproject(ptr.x, ptr.y);
+    const ux = ZFX + (ptr.x - ZFX) / ZOOM;
+    const uy = ZFY + (ptr.y - ZFY) / ZOOM;
+    const aw = this.unproject(ux, uy);
     p.aimAngle = Math.atan2(aw.y - p.y, aw.x - p.x);
     p.facing = 1; // corpo sempre olha pra frente (direita)
 
@@ -1246,9 +1253,8 @@ export class World {
   private spawnFormation(forced: string | undefined, intensity: number) {
     this.chestThisFormation = false; // no máx 1 baú por formação
     const cell = 42;
-    const top = WALL_TOP + 24;
-    const bot = WALL_BOT - 12;
-    const rows = Math.max(3, Math.floor((bot - top) / cell));
+    const rows = FORMATION_ROWS; // fase 1: só 6 fileiras
+    const startY = (WALL_TOP + WALL_BOT) / 2 - (rows * cell) / 2; // bloco centralizado na faixa
     const baseX = this.cameraX + VW + 50;
     const shape = forced ?? this.pickShape(intensity);
     const maxCols = 1 + Math.round(intensity * 4); // 1 → 5 colunas
@@ -1300,7 +1306,7 @@ export class World {
 
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
-        if (place(c, r)) this.spawnCube(baseX + c * cell, top + r * cell + cell / 2, intensity);
+        if (place(c, r)) this.spawnCube(baseX + c * cell, startY + r * cell + cell / 2, intensity);
       }
     }
   }
@@ -1535,6 +1541,8 @@ export class World {
     let ox = 0, oy = 0;
     if (this.shake > 0) { ox = (rng.next() - 0.5) * this.shake; oy = (rng.next() - 0.5) * this.shake; }
     ctx.translate(ox, oy);
+    // ZOOM (câmera mais próxima): escala o mundo em torno do foco
+    ctx.translate(ZFX, ZFY); ctx.scale(ZOOM, ZOOM); ctx.translate(-ZFX, -ZFY);
     this.drawBackground(ctx);
     this.drawMech(ctx);
     this.drawPickups(ctx);
