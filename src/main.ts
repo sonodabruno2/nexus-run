@@ -1,5 +1,6 @@
 import "./style.css";
-import { World, VW, VH } from "./game";
+import { World, VH } from "./game";
+import { setVW } from "./core/constants";
 import { UI } from "./ui";
 import { HUD } from "./hud";
 import { showGate } from "./gate";
@@ -20,23 +21,36 @@ const world = new World(ctx);
 const ui = new UI(app, world);
 const hud = new HUD(app);
 
-// ----- escala responsiva -----
+// ----- botão de TELA CHEIA (aparece nas telas de menu/loja/fim/pausa) -----
+const fsBtn = document.createElement("button");
+fsBtn.className = "fsbtn";
+fsBtn.title = "Tela cheia";
+fsBtn.textContent = "⛶";
+fsBtn.onclick = () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+  else document.exitFullscreen?.();
+};
+app.appendChild(fsBtn);
+
+// ----- escala responsiva: PREENCHE a tela (largura lógica = aspecto da janela) -----
 function resize() {
+  const winW = window.innerWidth, winH = window.innerHeight;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const margin = 0;
-  const scale = Math.min(
-    (window.innerWidth - margin) / VW,
-    (window.innerHeight - margin) / VH,
-  );
-  const cssW = Math.floor(VW * scale);
-  const cssH = Math.floor(VH * scale);
-  canvas.width = Math.floor(VW * dpr);
-  canvas.height = Math.floor(VH * dpr);
+  // VH fixo; largura lógica acompanha o aspecto (clampada) → canvas com o mesmo
+  // aspecto da janela = preenche a tela sem barras (só em aspectos extremos sobra borda).
+  const lw = Math.round(Math.min(1700, Math.max(820, VH * (winW / winH))));
+  setVW(lw);
+  const scale = Math.min(winW / lw, winH / VH);
+  const cssW = Math.round(lw * scale);
+  const cssH = Math.round(VH * scale);
+  // backing store em resolução de tela cheia (nítido), desenhando no espaço lógico lw×VH
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   stage.style.width = cssW + "px";
   stage.style.height = cssH + "px";
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform((cssW * dpr) / lw, 0, 0, (cssH * dpr) / VH, 0, 0);
 }
 window.addEventListener("resize", resize);
 resize();
@@ -61,6 +75,10 @@ function frame(now: number) {
   }
 
   if (world.player) world.render();
+
+  // botão de tela cheia só nas telas "de menu" (fora do jogo e das escolhas)
+  const menuish = ui.screen === "menu" || ui.screen === "shop" || ui.screen === "end" || ui.screen === "pause";
+  fsBtn.style.display = menuish ? "grid" : "none";
 
   // HUD em pílulas: visível só jogando
   const hudVisible = !!world.player && ui.screen === "none";

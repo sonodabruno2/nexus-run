@@ -60,17 +60,20 @@ export class UI {
     const m = this.world.meta;
     this.overlay.innerHTML = "";
 
+    const tagline = el("div", "tagline", "◈ Survivor horizontal · Roguelike ◈");
     const title = el("div", "title", "NEXUS RUN");
     const sub = el("div", "subtitle",
-      "Survivor horizontal automático. Avance pelo laboratório NEXUS enquanto a IA tenta empurrar você para a Barreira de Purga. Mire a build, sobreviva, vá mais fundo.");
+      "Avance pelo laboratório NEXUS enquanto a IA tenta te empurrar pra Barreira de Purga. Escolha um operador, monte a build no caminho e vá mais fundo.");
     const charsWrap = el("div", "chars");
     for (const c of CHARACTERS) {
       const card = el("div", "char" + (c.id === this.selectedChar ? " sel" : ""));
+      card.style.setProperty("--ch", c.color);
       card.innerHTML = `
         <div class="dot" style="background:${c.color};color:${c.color}"></div>
         <h3>${c.name}</h3>
         <div class="role">${c.title}</div>
-        <p><b>Arma:</b> ${WEAPONS[c.startWeapon].name}<br><b>Passiva:</b> ${c.passiveDesc}</p>
+        <div class="wpn">⚔ ${WEAPONS[c.startWeapon].name}</div>
+        <p><b>Passiva:</b> ${c.passiveDesc}</p>
         <div class="ult">★ ${c.ultName}: ${c.ultDesc}</div>`;
       card.onclick = () => {
         this.selectedChar = c.id;
@@ -90,9 +93,12 @@ export class UI {
     const shopBtn = el("button", "btn", "⚙ ABRIGO NEXUS (loja)") as HTMLButtonElement;
     shopBtn.onclick = () => this.showShop();
 
-    const hint = el("div", "hint", "Mover: WASD / setas / arraste · Ultimate: Espaço · Pausar: P");
+    const hint = el("div", "hint");
+    hint.innerHTML =
+      "Mover <kbd>WASD</kbd> / <kbd>setas</kbd> / clique-pra-andar · Mirar com o <kbd>mouse</kbd> · " +
+      "Especial <kbd>botão dir.</kbd> · Pausar <kbd>P</kbd>";
 
-    this.overlay.append(title, sub, creditsLine, best, charsWrap, row(startBtn, shopBtn), hint);
+    this.overlay.append(tagline, title, sub, creditsLine, best, charsWrap, row(startBtn, shopBtn), hint);
   }
 
   showShop() {

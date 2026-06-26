@@ -52,16 +52,17 @@ const BASE_PICKUP_RANGE = 58; // raio base do "ímã" pra coletar XP do chão
 const DYING_MAX = 0.34; // duração da animação de morte (corpo voa com o empurrão e some)
 const MECH_LINE = 30; // tela-x: inimigo que chega aqui bate no mech e causa dano
 const FORMATION_ROWS = 6; // fase 1: formações só com 6 fileiras de cubos
-// zoom de câmera (mais próximo): escala o render do mundo em torno de um foco
+// zoom de câmera (mais próximo): escala o render do mundo em torno de um foco.
+// Foco calculado AO VIVO (VW muda com o aspecto da janela).
 const ZOOM = 1.25;
-const ZFX = VW * 0.38; // foco à esquerda → mantém o mech mais visível
-const ZFY = VH * 0.56;
+const zfx = () => VW * 0.38; // foco à esquerda → mantém o mech mais visível
+const zfy = () => VH * 0.56;
 
 // ---- Projeção em PERSPECTIVA (a faixa Y vira PROFUNDIDADE) ----
 // y=WALL_TOP = fundo (longe, pequeno, no alto); y=WALL_BOT = frente (perto,
 // grande, embaixo). Mundo é plano (x = avanço, y = profundidade); só o
 // desenho projeta. Câmera inclinada olhando o corredor.
-const VANISH_X = VW / 2;
+const vanishX = () => VW / 2;
 const FAR_SCALE = 0.46; // escala no fundo
 const NEAR_Y = 516; // y de tela da faixa mais próxima
 const FAR_Y = 196; // y de tela da faixa mais ao fundo
@@ -224,8 +225,9 @@ export class World {
 
     // mira pelo mouse: des-ZOOM o ponteiro, des-projeta (tela → mundo) e mira de lá
     const ptr = this.input.pointer();
-    const ux = ZFX + (ptr.x - ZFX) / ZOOM;
-    const uy = ZFY + (ptr.y - ZFY) / ZOOM;
+    const fx = zfx(), fy = zfy();
+    const ux = fx + (ptr.x - fx) / ZOOM;
+    const uy = fy + (ptr.y - fy) / ZOOM;
     const aw = this.unproject(ux, uy);
     p.aimAngle = Math.atan2(aw.y - p.y, aw.x - p.x);
     p.facing = 1; // corpo sempre olha pra frente (direita)
@@ -1574,7 +1576,8 @@ export class World {
     if (this.shake > 0) { ox = (rng.next() - 0.5) * this.shake; oy = (rng.next() - 0.5) * this.shake; }
     ctx.translate(ox, oy);
     // ZOOM (câmera mais próxima): escala o mundo em torno do foco
-    ctx.translate(ZFX, ZFY); ctx.scale(ZOOM, ZOOM); ctx.translate(-ZFX, -ZFY);
+    const fx = zfx(), fy = zfy();
+    ctx.translate(fx, fy); ctx.scale(ZOOM, ZOOM); ctx.translate(-fx, -fy);
     this.drawBackground(ctx);
     this.drawMech(ctx);
     this.drawPickups(ctx);
@@ -1601,7 +1604,8 @@ export class World {
     const z = ZFAR + t * (1 - ZFAR);
     const sc = 1 / z;
     const sy = HORIZON + PROJ_C * sc;
-    const sx = VANISH_X + (x - this.cameraX - VANISH_X) * sc;
+    const vx = vanishX();
+    const sx = vx + (x - this.cameraX - vx) * sc;
     return { sx, sy, sc };
   }
   // tela → mundo (pra mira do mouse)
@@ -1610,7 +1614,8 @@ export class World {
     const z = 1 / sc;
     const t = clamp((z - ZFAR) / (1 - ZFAR), 0, 1);
     const y = WALL_TOP + t * (WALL_BOT - WALL_TOP);
-    const x = this.cameraX + VANISH_X + (sx - VANISH_X) / sc;
+    const vx = vanishX();
+    const x = this.cameraX + vx + (sx - vx) / sc;
     return { x, y };
   }
 
