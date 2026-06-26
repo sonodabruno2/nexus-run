@@ -24,7 +24,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
   // ---- MECH (robô-dono) ----
   { id: "mech_cannon", name: "Mech — Canhão", desc: "+12% dano do poder do mech por nível.", max: 5, baseCost: 90, costStep: 70 },
   { id: "mech_reactor", name: "Mech — Reator", desc: "+8% frequência do poder do mech por nível.", max: 4, baseCost: 100, costStep: 70 },
-  { id: "mech_armor", name: "Mech — Blindagem", desc: "+18 de escudo inicial (do mech) por nível.", max: 4, baseCost: 80, costStep: 60 },
+  { id: "mech_armor", name: "Mech — Blindagem", desc: "+30 de vida máxima do mech por nível.", max: 4, baseCost: 80, costStep: 60 },
 ];
 
 export interface MetaState {

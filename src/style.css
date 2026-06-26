@@ -165,6 +165,10 @@ canvas { display: block; image-rendering: pixelated; }
 .pill.stat { background: rgba(255,255,255,0.92); }
 .pill.cred { color: #8a5a00; }
 .pill.kill { color: #7a2436; }
+.pill.mech { min-width: clamp(86px, 12vw, 124px); color: #0c2436; }
+.pill.mech .fill.mfill { background: linear-gradient(90deg, #2f6cff, #7fd4ff); }
+.pill.mech.low { color: #fff; animation: ultpulse 0.7s ease-in-out infinite; }
+.pill.mech.low .fill.mfill { background: linear-gradient(90deg, #ff3860, #ff8a5c); }
 .pill.ammo { min-width: clamp(78px, 10vw, 116px); color: #163a52; }
 .pill.ammo .fill.afill { background: linear-gradient(90deg, #2aa9ff, #8fd6ff); }
 .pill.ammo.reloading { color: #6a3c00; }

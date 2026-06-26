@@ -18,7 +18,7 @@ import {
 } from "./types";
 import { WEAPONS } from "./content/weapons";
 import { ENEMIES } from "./content/enemies";
-import { MECH_UPGRADES, MECH_BASE_DAMAGE, MECH_BASE_CD } from "./content/mech";
+import { MECH_UPGRADES, MECH_BASE_DAMAGE, MECH_BASE_CD, MECH_BASE_HP } from "./content/mech";
 import { clamp, dist2, lerp } from "./core/math";
 import { rng } from "./core/rng";
 import { Input } from "./core/input";
@@ -50,6 +50,7 @@ const BOSS_TRIGGER = 150; // ~2,5 min de progressão até o chefe
 const GAME_SPEED = 0.75; // jogo 25% mais lento (escala o passo da simulação)
 const BASE_PICKUP_RANGE = 58; // raio base do "ímã" pra coletar XP do chão
 const DYING_MAX = 0.34; // duração da animação de morte (corpo voa com o empurrão e some)
+const MECH_LINE = 30; // tela-x: inimigo que chega aqui bate no mech e causa dano
 
 // ---- Projeção em PERSPECTIVA (a faixa Y vira PROFUNDIDADE) ----
 // y=WALL_TOP = fundo (longe, pequeno, no alto); y=WALL_BOT = frente (perto,
@@ -101,8 +102,9 @@ export class World {
   creditTargetX = VW - 80;
   creditTargetY = 22;
   private ultWasReady = false;
-  // MECH (robô-dono): bônus roguelike + estado do poder/visual
-  mech: { up: MechBonus; powerTimer: number } = { up: baseMechBonus(), powerTimer: MECH_BASE_CD };
+  // MECH (robô-dono): vida própria + bônus roguelike + estado do poder/visual
+  mech: { up: MechBonus; powerTimer: number; hp: number; maxHp: number } =
+    { up: baseMechBonus(), powerTimer: MECH_BASE_CD, hp: MECH_BASE_HP, maxHp: MECH_BASE_HP };
   mechBeamY = 0;
   mechBeamTimer = 0;
   mechFlash = 0;
@@ -146,12 +148,11 @@ export class World {
     this.boss = null;
     this.status = "playing";
     this.pendingCards = null;
-    // MECH: bônus permanentes (loja) + escudo inicial concedido pelo robô
-    this.mech = { up: baseMechBonus(), powerTimer: MECH_BASE_CD };
+    // MECH: vida própria + bônus permanentes (loja)
+    const mechHp = MECH_BASE_HP + 30 * upgradeLevel(this.meta, "mech_armor");
+    this.mech = { up: baseMechBonus(), powerTimer: MECH_BASE_CD, hp: mechHp, maxHp: mechHp };
     this.mech.up.powerDamageMul *= 1 + 0.12 * upgradeLevel(this.meta, "mech_cannon");
     this.mech.up.powerRateMul *= 1 - 0.08 * upgradeLevel(this.meta, "mech_reactor");
-    this.mech.up.shieldAdd += 18 * upgradeLevel(this.meta, "mech_armor");
-    this.player.shield = Math.max(this.player.shield, this.mech.up.shieldAdd);
     this.mechBeamTimer = 0; this.mechFlash = 0;
     this.moveTargetActive = false;
     // drone inicial pra Rook já entrar com algo visível
@@ -190,7 +191,8 @@ export class World {
     if (ready && !this.ultWasReady) audio.ultReady();
     this.ultWasReady = ready;
 
-    if (this.player.hp <= 0) this.endRun(false);
+    // game over se a vida do PERSONAGEM ou do MECH zerar
+    if (this.player.hp <= 0 || this.mech.hp <= 0) this.endRun(false);
   }
 
   private updatePlayer(dt: number) {
@@ -280,6 +282,15 @@ export class World {
       this.shake = Math.max(this.shake, 6);
       audio.hurt();
     }
+  }
+
+  // inimigo bateu no mech: dano na vida DO MECH (game over se zerar)
+  private hurtMech(dmg: number) {
+    this.mech.hp -= dmg;
+    this.mechFlash = Math.max(this.mechFlash, 0.3);
+    this.shake = Math.max(this.shake, 5);
+    audio.hurt();
+    if (this.mech.hp <= 0) { this.mech.hp = 0; this.endRun(false); }
   }
 
   // ---- MECH: regeneração + poder periódico (feixe gigante) ----
@@ -669,11 +680,11 @@ export class World {
         }
       }
 
-      // despawn atrás da câmera (nunca o chefe)
+      // inimigo que chega na LINHA DO MECH bate nele e causa dano (consumido)
       const sx = e.x - this.cameraX;
-      if (!e.boss) {
-        if (sx < -160 && e.def.behavior !== "pusher") e.dead = true;
-        if (sx < -260) e.dead = true;
+      if (!e.boss && sx < MECH_LINE) {
+        this.hurtMech(e.def.damage);
+        e.dead = true; // crash no mech (sem recompensa, sem fragmentos)
       }
     }
     this.enemies = this.enemies.filter((e) => {
@@ -1102,7 +1113,10 @@ export class World {
       // item de baú: melhora uma característica roguelike do MECH
       const u = rng.pick(MECH_UPGRADES);
       u.apply(this.mech.up);
-      p.shield = Math.max(p.shield, this.mech.up.shieldAdd); // concede o escudo
+      // recalcula a vida máx do mech (blindagem) e CURA pelo ganho
+      const newMax = MECH_BASE_HP + 30 * upgradeLevel(this.meta, "mech_armor") + this.mech.up.hpAdd;
+      this.mech.hp += Math.max(0, newMax - this.mech.maxHp);
+      this.mech.maxHp = newMax;
       this.mechFlash = 0.7;
       audio.level();
       this.floatNumber(p.x, p.y - 34, `⚙ MECH: ${u.name}`, "#5cf2ff", 16);

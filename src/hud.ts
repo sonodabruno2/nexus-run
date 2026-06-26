@@ -16,6 +16,7 @@ export class HUD {
       <div class="hud-top">
         <div class="hud-side hud-left">
           <div class="pill hp"><div class="fill"></div><div class="fill shield"></div><span class="txt"></span></div>
+          <div class="pill mech"><div class="fill mfill"></div><span class="txt mtxt">⚙ —</span></div>
           <div class="pill xp"><div class="fill"></div><span class="txt">Nv 1</span></div>
           <div class="pill ammo"><div class="fill afill"></div><span class="txt atxt">—</span></div>
           <div class="upgrades"></div>
@@ -42,6 +43,7 @@ export class HUD {
     const q = <T extends HTMLElement>(s: string) => this.root.querySelector(s) as T;
     for (const k of [
       ".pill.hp .fill:not(.shield)|hpFill", ".pill.hp .fill.shield|hpShield", ".pill.hp .txt|hpTxt",
+      ".pill.mech|mechPill", ".pill.mech .mfill|mechFill", ".pill.mech .mtxt|mechTxt",
       ".pill.xp .fill|xpFill", ".pill.xp .txt|xpTxt",
       ".pill.ammo|ammoPill", ".pill.ammo .afill|ammoFill", ".pill.ammo .atxt|ammoTxt",
       ".upgrades|upgrades",
@@ -76,6 +78,12 @@ export class HUD {
     e.hpFill.style.width = Math.max(0, Math.min(1, p.hp / p.maxHp)) * 100 + "%";
     e.hpShield.style.width = Math.min(1, p.shield / p.maxHp) * 100 + "%";
     e.hpTxt.textContent = `${Math.ceil(Math.max(0, p.hp))}/${p.maxHp}`;
+    // vida do MECH (game over se zerar)
+    const m = world.mech;
+    const mFrac = Math.max(0, Math.min(1, m.hp / m.maxHp));
+    e.mechFill.style.width = mFrac * 100 + "%";
+    e.mechPill.classList.toggle("low", mFrac < 0.3);
+    e.mechTxt.textContent = `⚙ ${Math.ceil(Math.max(0, m.hp))}/${m.maxHp}`;
     e.xpFill.style.width = Math.min(1, p.xp / p.xpToNext) * 100 + "%";
     e.xpTxt.textContent = `Nv ${p.level}`;
 
