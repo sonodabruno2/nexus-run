@@ -35,6 +35,7 @@ export class UI {
 
   private show() {
     this.overlay.classList.remove("hidden");
+    this.overlay.classList.remove("translucent"); // padrão: cobre tudo (menu/loja/fim)
   }
 
   showPause() {
@@ -137,6 +138,7 @@ export class UI {
   // ----------------------------- level up
   showLevelUp(cards: Card[]) {
     this.show();
+    this.overlay.classList.add("translucent"); // deixa o mapa visível atrás
     this.screen = "levelup";
     this.overlay.innerHTML = "";
     this.overlay.append(
@@ -172,6 +174,7 @@ export class UI {
   // ----------------------------- escolha de upgrade do MECH (baú raro)
   showMechPick(cards: MechUpgradeDef[]) {
     this.show();
+    this.overlay.classList.add("translucent"); // deixa o mapa visível atrás
     this.screen = "mechpick";
     this.overlay.innerHTML = "";
     const title = el("div", "title mech", "⚙ NÚCLEO DO MECH");

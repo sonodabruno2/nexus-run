@@ -65,6 +65,13 @@ canvas { display: block; image-rendering: pixelated; }
   overflow-y: auto;
 }
 .overlay.hidden { display: none; }
+/* escolhas DURANTE a fase (nível/mech): não esconde o mapa atrás, só escurece sutil */
+.overlay.translucent {
+  background: radial-gradient(circle at 50% 45%, rgba(5,7,13,0.34), rgba(5,7,13,0.7) 82%);
+  justify-content: center;
+}
+.overlay.translucent .subtitle { color: #dCe8ff; text-shadow: 0 1px 6px rgba(0,0,0,0.95); }
+.overlay.translucent .cards .card { box-shadow: 0 10px 40px rgba(0,0,0,0.55); }
 
 .title {
   font-size: clamp(30px, 6vw, 52px);
@@ -137,8 +144,27 @@ canvas { display: block; image-rendering: pixelated; }
 /* ---------- HUD: pílulas brancas flutuantes (responsivo) ---------- */
 .hud { pointer-events: none; }
 .hud.hidden { display: none; }
+/* barra de progressão de NÍVEL — ocupa a tela toda no topo, enchendo */
+.levelbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 6;
+  height: clamp(10px, 1.4vh, 16px);
+  background: rgba(8, 16, 30, 0.72);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.06), 0 1px 10px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+.levelbar .fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: linear-gradient(90deg, #2aa9ff, #5cf2ff 70%, #b9f6ff);
+  box-shadow: 0 0 16px rgba(92,242,255,0.7);
+  transition: width .14s linear;
+}
+.levelbar .lvtag {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font: 800 clamp(9px, 1.1vw, 12px) system-ui; letter-spacing: 1px;
+  color: #eaf6ff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); z-index: 1;
+}
 .hud-top {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  position: fixed; top: clamp(10px, 1.4vh, 16px); left: 0; right: 0; z-index: 5;
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: clamp(8px, 1.6vw, 16px); gap: 10px;
 }

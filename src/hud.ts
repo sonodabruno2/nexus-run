@@ -13,11 +13,11 @@ export class HUD {
     this.root = document.createElement("div");
     this.root.className = "hud hidden";
     this.root.innerHTML = `
+      <div class="levelbar"><div class="fill"></div><span class="lvtag">Nv 1</span></div>
       <div class="hud-top">
         <div class="hud-side hud-left">
           <div class="pill hp"><div class="fill"></div><div class="fill shield"></div><span class="txt"></span></div>
           <div class="pill mech"><div class="fill mfill"></div><span class="txt mtxt">⚙ —</span></div>
-          <div class="pill xp"><div class="fill"></div><span class="txt">Nv 1</span></div>
           <div class="pill ammo"><div class="fill afill"></div><span class="txt atxt">—</span></div>
           <div class="upgrades"></div>
         </div>
@@ -44,7 +44,7 @@ export class HUD {
     for (const k of [
       ".pill.hp .fill:not(.shield)|hpFill", ".pill.hp .fill.shield|hpShield", ".pill.hp .txt|hpTxt",
       ".pill.mech|mechPill", ".pill.mech .mfill|mechFill", ".pill.mech .mtxt|mechTxt",
-      ".pill.xp .fill|xpFill", ".pill.xp .txt|xpTxt",
+      ".levelbar .fill|xpFill", ".levelbar .lvtag|xpTxt",
       ".pill.ammo|ammoPill", ".pill.ammo .afill|ammoFill", ".pill.ammo .atxt|ammoTxt",
       ".upgrades|upgrades",
       ".pill.progress|progPill", ".pill.progress .prog|progFill", ".pill.progress .ptxt|progTxt",

@@ -14,6 +14,9 @@ import { upgradeLevel } from "./meta";
 
 export const MAX_WEAPON_SLOTS = 6;
 export const MAX_PASSIVE_SLOTS = 6;
+// as 4 armas "principais" (cada personagem começa com uma) — priorizadas como
+// opção de nova arma nas cartas de nível, pra você poder trocar/combinar
+export const MAIN_WEAPON_IDS = ["pulse_rifle", "shotgun", "burst", "hammer"];
 
 // cria a instância de uma arma já com o pente cheio (se tiver munição)
 export function makeWeapon(defId: string): WeaponInst {
@@ -195,8 +198,19 @@ export function generateCards(p: Player, count: number): Card[] {
   if (fusionCards.length) chosen.push(rng.pick(fusionCards));
   // Garante até 1 upgrade DEDICADO de arma se houver
   if (modCards.length && chosen.length < count) chosen.push(rng.pick(modCards));
+  // Garante a opção de PEGAR OUTRA ARMA (prioriza as 4 principais) enquanto
+  // houver slot — assim dá pra montar a build com várias armas e, depois,
+  // as melhorias dedicadas de cada uma vão aparecendo.
+  let workPool = pool;
+  const newWeaponCards = pool.filter((c) => c.kind === "weapon-new");
+  if (newWeaponCards.length && chosen.length < count) {
+    const mains = newWeaponCards.filter((c) => c.kind === "weapon-new" && MAIN_WEAPON_IDS.includes(c.id));
+    const pickedWeapon = rng.pick(mains.length ? mains : newWeaponCards);
+    chosen.push(pickedWeapon);
+    workPool = pool.filter((c) => c !== pickedWeapon); // não repete na amostragem
+  }
   const remaining = count - chosen.length;
-  const sampled = rng.sample(pool, Math.max(0, remaining));
+  const sampled = rng.sample(workPool, Math.max(0, remaining));
   chosen.push(...sampled);
 
   // fallback se faltou opção
