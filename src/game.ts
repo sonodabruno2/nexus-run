@@ -1279,9 +1279,9 @@ export class World {
   // pondera as formas pela intensidade: cedo esparso, tarde paredão
   private pickShape(intensity: number): string {
     const pool = intensity < 0.34
-      ? ["column", "column", "column", "block"]
+      ? ["column", "block", "diag", "arrow", "checker"] // formas ORGANIZADAS (sem scatter disperso)
       : intensity < 0.67
-        ? ["column", "block", "block", "checker", "wall"]
+        ? ["column", "block", "block", "checker", "wall", "diag"]
         : ["wall", "wall", "block", "checker", "arrow", "wall"];
     return rng.pick(pool);
   }
@@ -1763,6 +1763,13 @@ export class World {
     // ordena por profundidade (inclui corpos MORRENDO, que somem com fade)
     const list = this.enemies.filter((e) => !e.dead || e.dying > 0).sort((a, b) => a.y - b.y);
 
+    // mapa de ocupação por célula (posição-lar): pra COLAR cubos verticalmente —
+    // um cubo estica a face até o cubo de trás (mesma coluna, 1 fileira ao fundo).
+    const cellKey = (x: number, y: number) =>
+      `${Math.round(x / FORMATION_CELL)}:${Math.round(y / FORMATION_CELL)}`;
+    const occ = new Set<string>();
+    for (const e of list) if (e.def.behavior === "cube" && !e.dead) occ.add(cellKey(e.homeX, e.homeY));
+
     for (const e of list) {
       const pr = this.project(e.x, e.y);
       if (pr.sx < -110 || pr.sx > VW + 110) continue;
@@ -1770,7 +1777,14 @@ export class World {
       const fade = e.dead ? Math.max(0, e.dying / DYING_MAX) : 1; // morrendo → some
       const r = e.radius * pr.sc * (e.dead ? 0.55 + 0.45 * fade : 1); // encolhe ao morrer
       const col = e.flash > 0 ? "#ffffff" : e.def.color;
-      if (e.def.behavior === "cube") { this.drawCube(ctx, e, pr.sx, pr.sy, r, fade); continue; }
+      if (e.def.behavior === "cube") {
+        // tem cubo ATRÁS (1 fileira ao fundo, mesma coluna)? então estica a face
+        // até a base dele (parede contínua, sem vão). Senão, cubo normal (com topo).
+        const hasBehind = !e.dead && occ.has(cellKey(e.homeX, e.homeY - FORMATION_CELL));
+        const behindSy = hasBehind ? this.project(e.x, e.y - FORMATION_CELL).sy : undefined;
+        this.drawCube(ctx, e, pr.sx, pr.sy, r, fade, behindSy);
+        continue;
+      }
       const flying = e.def.behavior === "rushFront" || e.def.behavior === "fromDoor" || e.def.behavior === "shooter";
       const lift = e.boss ? r : flying ? r * 1.5 : r * 0.95;
 
@@ -1827,55 +1841,64 @@ export class World {
     }
   }
 
-  // cubo sólido em 2.5D (assenta no chão; topo sobe), com HP numerado
-  private drawCube(ctx: CanvasRenderingContext2D, e: Enemy, sx: number, sy: number, r: number, fade = 1) {
+  // cubo sólido em 2.5D (assenta no chão; topo sobe), com HP numerado.
+  // `behindSy` = base (tela) do cubo de TRÁS na mesma coluna; se vier, a face
+  // ESTICA até lá → cubos COLADOS na vertical (parede contínua, sem vão).
+  private drawCube(ctx: CanvasRenderingContext2D, e: Enemy, sx: number, sy: number, r: number, fade = 1, behindSy?: number) {
     const flash = e.flash > 0;
     const base = flash ? "#ffffff" : e.def.color;
     // o cubo "se levanta" do chão: base em sy, sobe 2r
     const bottom = sy;
-    const topf = sy - r * 2; // topo da face frontal
+    const ctop = sy - r * 2; // topo REAL do cubo (topo 3D, decorações, HP)
+    // COLADO: havendo cubo atrás (mais ao fundo = sy menor), estica a face até a
+    // base dele; o topo/lateral 3D some (parede contínua). Sem vizinho → cubo normal.
+    const extended = behindSy !== undefined && behindSy < ctop;
+    const topf = extended ? behindSy : ctop; // topo da face frontal (esticável)
+    const fh = bottom - topf; // altura da face desenhada
     const dx = r * 0.5, dy = r * 0.55; // profundidade do cubo
     if (fade >= 1) this.groundShadow(ctx, sx, bottom, r * 1.05, 0.3);
 
     ctx.save();
     ctx.globalAlpha = fade;
-    // topo (mais claro)
-    ctx.fillStyle = flash ? "#ffffff" : shade(e.def.color, 1.45);
-    ctx.beginPath();
-    ctx.moveTo(sx - r, topf);
-    ctx.lineTo(sx - r + dx, topf - dy);
-    ctx.lineTo(sx + r + dx, topf - dy);
-    ctx.lineTo(sx + r, topf);
-    ctx.closePath(); ctx.fill();
-    // lateral direita (mais escura)
-    ctx.fillStyle = flash ? "#dddddd" : shade(e.def.color, 0.6);
-    ctx.beginPath();
-    ctx.moveTo(sx + r, topf);
-    ctx.lineTo(sx + r + dx, topf - dy);
-    ctx.lineTo(sx + r + dx, bottom - dy);
-    ctx.lineTo(sx + r, bottom);
-    ctx.closePath(); ctx.fill();
-    // face frontal
+    if (!extended) {
+      // topo (mais claro) — só aparece no topo da parede / nos degraus da forma
+      ctx.fillStyle = flash ? "#ffffff" : shade(e.def.color, 1.45);
+      ctx.beginPath();
+      ctx.moveTo(sx - r, ctop);
+      ctx.lineTo(sx - r + dx, ctop - dy);
+      ctx.lineTo(sx + r + dx, ctop - dy);
+      ctx.lineTo(sx + r, ctop);
+      ctx.closePath(); ctx.fill();
+      // lateral direita (mais escura)
+      ctx.fillStyle = flash ? "#dddddd" : shade(e.def.color, 0.6);
+      ctx.beginPath();
+      ctx.moveTo(sx + r, ctop);
+      ctx.lineTo(sx + r + dx, ctop - dy);
+      ctx.lineTo(sx + r + dx, bottom - dy);
+      ctx.lineTo(sx + r, bottom);
+      ctx.closePath(); ctx.fill();
+    }
+    // face frontal (estica de topf até a base)
     const g = ctx.createLinearGradient(0, topf, 0, bottom);
     g.addColorStop(0, base);
     g.addColorStop(1, flash ? "#cccccc" : shade(e.def.color, 0.78));
     ctx.fillStyle = g;
-    ctx.fillRect(sx - r, topf, r * 2, r * 2);
+    ctx.fillRect(sx - r, topf, r * 2, fh);
     ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1;
-    ctx.strokeRect(sx - r, topf, r * 2, r * 2);
+    ctx.strokeRect(sx - r, topf, r * 2, fh);
     // BAÚ: banda da tampa + fechadura brilhante (e brilho dourado pulsante)
     if (e.def.id === "chest" && !e.dead) {
-      ctx.fillStyle = "#5a3d00"; ctx.fillRect(sx - r, topf + r * 0.5, r * 2, r * 0.28);
+      ctx.fillStyle = "#5a3d00"; ctx.fillRect(sx - r, ctop + r * 0.5, r * 2, r * 0.28);
       ctx.fillStyle = "#fff2a8"; ctx.shadowColor = "#ffd65c"; ctx.shadowBlur = 8 + Math.sin(this.time * 6) * 4;
-      ctx.beginPath(); ctx.arc(sx, topf + r * 0.64, r * 0.16, 0, 6.28); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, ctop + r * 0.64, r * 0.16, 0, 6.28); ctx.fill();
       ctx.shadowBlur = 0;
     }
-    if (e.dotDps > 0) { ctx.fillStyle = "rgba(124,255,142,0.35)"; ctx.fillRect(sx - r, topf, r * 2, r * 2); }
+    if (e.dotDps > 0) { ctx.fillStyle = "rgba(124,255,142,0.35)"; ctx.fillRect(sx - r, topf, r * 2, fh); }
     // HP na face (não em corpo morrendo) — baú mostra HP em cima, não no centro
     if (e.def.id === "chest" && !e.dead) {
       ctx.fillStyle = "#3a2800"; ctx.font = `bold ${Math.round(r * 0.6)}px system-ui`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, topf + r * 0.22);
+      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, ctop + r * 0.22);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.restore();
       return;
@@ -1885,7 +1908,7 @@ export class World {
       ctx.fillStyle = "#06080f";
       ctx.font = `bold ${Math.round(r * 0.95)}px system-ui`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, topf + r);
+      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, ctop + r);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
