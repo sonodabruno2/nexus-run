@@ -4,10 +4,20 @@
 // (live binding) pra o jogo PREENCHER a tela em qualquer proporção.
 export let VW = 960;
 export const VH = 540;
-export const WALL_TOP = 40;
-export const WALL_BOT = VH - 40;
+// PAREDES = limites da faixa jogável (profundidade). Dinâmicas: a faixa
+// encolhe/cresce conforme a quantidade de fileiras de inimigos, sempre
+// CENTRADA em VH/2. Default = 6 fileiras (fase 1).
+export let WALL_TOP = VH / 2 - (6 * 42) / 2;
+export let WALL_BOT = VH / 2 + (6 * 42) / 2;
 
 // ajusta a largura lógica ao aspecto atual (chamado no resize)
 export function setVW(w: number) {
   VW = Math.round(Math.min(1700, Math.max(820, w)));
+}
+
+// dimensiona a faixa jogável (paredes) à altura dada, centrada em VH/2
+export function setBandHeight(h: number) {
+  const half = Math.max(60, h) / 2;
+  WALL_TOP = VH / 2 - half;
+  WALL_BOT = VH / 2 + half;
 }

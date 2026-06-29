@@ -39,12 +39,14 @@ import {
   type MetaState,
 } from "./meta";
 import type { CharacterDef } from "./types";
-import { VW, VH, WALL_TOP, WALL_BOT } from "./core/constants";
+import { VW, VH, WALL_TOP, WALL_BOT, setBandHeight } from "./core/constants";
 
 // re-exporta pra quem importava de game.ts
 export { VW, VH };
 const MIN_PX = 64; // limite esquerdo (mundo) do jogador
-const MAX_PX = 640; // limite direito (mundo) do jogador
+// limite direito do jogador: acompanha a largura (anda "o mapa todo"), mantendo
+// uma margem da borda direita onde entram as formações.
+const maxPx = () => Math.min(VW * 0.7, VW - 300);
 const PURGE_PX = 96; // abaixo disso (em mundo-x) começa o dano da Purga
 const BOSS_TRIGGER = 150; // ~2,5 min de progressão até o chefe
 const GAME_SPEED = 0.75; // jogo 25% mais lento (escala o passo da simulação)
@@ -52,6 +54,7 @@ const BASE_PICKUP_RANGE = 58; // raio base do "ímã" pra coletar XP do chão
 const DYING_MAX = 0.34; // duração da animação de morte (corpo voa com o empurrão e some)
 const MECH_LINE = 30; // tela-x: inimigo que chega aqui bate no mech e causa dano
 const FORMATION_ROWS = 6; // fase 1: formações só com 6 fileiras de cubos
+const FORMATION_CELL = 42; // tamanho (mundo) de cada célula/fileira da formação
 // zoom de câmera (mais próximo): escala o render do mundo em torno de um foco.
 // Foco calculado AO VIVO (VW muda com o aspecto da janela).
 const ZOOM = 1.25;
@@ -131,6 +134,9 @@ export class World {
   }
 
   start(char: CharacterDef) {
+    // paredes (faixa jogável) dimensionadas às fileiras da formação:
+    // 6 fileiras → corredor justo aos 6; mais fileiras → corredor maior.
+    setBandHeight(FORMATION_ROWS * FORMATION_CELL);
     this.player = createPlayer(char, this.meta);
     this.cameraX = 0;
     this.player.x = MIN_PX + 220;
@@ -274,7 +280,7 @@ export class World {
     }
 
     // mantém na tela (limites esquerdo/direito em coords de tela)
-    p.x = clamp(p.x, this.cameraX + MIN_PX, this.cameraX + MAX_PX);
+    p.x = clamp(p.x, this.cameraX + MIN_PX, this.cameraX + maxPx());
     p.y = clamp(p.y, WALL_TOP + p.radius, WALL_BOT - p.radius);
 
     // Barreira de Purga
@@ -1284,7 +1290,7 @@ export class World {
   // os aproxima. `intensity` (0..1) controla densidade/tamanho/fendas.
   private spawnFormation(forced: string | undefined, intensity: number) {
     this.chestThisFormation = false; // no máx 1 baú por formação
-    const cell = 42;
+    const cell = FORMATION_CELL;
     const rows = FORMATION_ROWS; // fase 1: só 6 fileiras
     const startY = (WALL_TOP + WALL_BOT) / 2 - (rows * cell) / 2; // bloco centralizado na faixa
     const baseX = this.cameraX + VW + 50;
