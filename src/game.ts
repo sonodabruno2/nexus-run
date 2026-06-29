@@ -54,7 +54,7 @@ const BASE_PICKUP_RANGE = 58; // raio base do "ímã" pra coletar XP do chão
 const DYING_MAX = 0.34; // duração da animação de morte (corpo voa com o empurrão e some)
 const MECH_LINE = 30; // tela-x: inimigo que chega aqui bate no mech e causa dano
 const FORMATION_ROWS = 6; // fase 1: formações só com 6 fileiras de cubos
-const FORMATION_CELL = 42; // tamanho (mundo) de cada célula/fileira da formação
+const FORMATION_CELL = 38; // = diâmetro do cubo (raio 19): cubos COLADOS, sem folga
 // zoom de câmera (mais próximo): escala o render do mundo em torno de um foco.
 // Foco calculado AO VIVO (VW muda com o aspecto da janela).
 const ZOOM = 1.25;
@@ -1279,9 +1279,9 @@ export class World {
   // pondera as formas pela intensidade: cedo esparso, tarde paredão
   private pickShape(intensity: number): string {
     const pool = intensity < 0.34
-      ? ["scatter", "scatter", "diag", "arrow", "block"]
+      ? ["column", "column", "column", "block"]
       : intensity < 0.67
-        ? ["scatter", "diag", "block", "block", "checker", "wall"]
+        ? ["column", "block", "block", "checker", "wall"]
         : ["wall", "wall", "block", "checker", "arrow", "wall"];
     return rng.pick(pool);
   }
@@ -1301,6 +1301,13 @@ export class World {
     let place: (c: number, r: number) => boolean = () => true;
 
     switch (shape) {
+      case "column": {
+        // FASE INICIAL: colunas SÓLIDAS — cada coluna preenche as 6 fileiras,
+        // cubos colados um no outro, organizados (sem fendas, sem dispersão).
+        cols = rng.int(1, 3);
+        place = () => true;
+        break;
+      }
       case "wall": {
         cols = Math.max(1, Math.min(maxCols, rng.int(1, 2 + Math.round(intensity * 2))));
         // quanto maior a intensidade, MENOS fendas (paredão fecha a fase)
