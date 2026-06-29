@@ -1293,7 +1293,9 @@ export class World {
     const cell = FORMATION_CELL;
     const rows = FORMATION_ROWS; // fase 1: só 6 fileiras
     const startY = (WALL_TOP + WALL_BOT) / 2 - (rows * cell) / 2; // bloco centralizado na faixa
-    const baseX = this.cameraX + VW + 50;
+    // ancora a formação na GRID do chão: centro de cada coluna = borda da célula +
+    // meia célula → cada cubo ocupa exatamente 1 célula da grade.
+    const baseX = Math.ceil((this.cameraX + VW + 50) / cell) * cell + cell / 2;
     const shape = forced ?? this.pickShape(intensity);
     const maxCols = 1 + Math.round(intensity * 4); // 1 → 5 colunas
 
@@ -1667,19 +1669,25 @@ export class World {
     ctx.fillStyle = fg;
     ctx.fillRect(0, FAR_Y, VW, VH - FAR_Y);
 
-    // linhas de PROFUNDIDADE (faixas y constantes) — horizontais, juntas ao fundo
-    const rows = 10;
+    // linhas de PROFUNDIDADE = as 6 FAIXAS ÚTEIS (uma por bloco). As bordas
+    // (faixa 0 e 6) são a PAREDE, no limite dos 6 blocos: destacadas em ciano.
+    const rows = FORMATION_ROWS;
     for (let i = 0; i <= rows; i++) {
       const ly = WALL_TOP + (WALL_BOT - WALL_TOP) * (i / rows);
       const a = this.project(0, ly);
-      ctx.strokeStyle = `rgba(70,120,180,${0.05 + 0.12 * a.sc})`;
+      const edge = i === 0 || i === rows;
+      ctx.strokeStyle = edge ? `rgba(92,242,255,${0.30 + 0.35 * a.sc})` : `rgba(70,120,180,${0.06 + 0.14 * a.sc})`;
+      ctx.lineWidth = edge ? 2 : 1;
       ctx.beginPath(); ctx.moveTo(0, a.sy); ctx.lineTo(VW, a.sy); ctx.stroke();
     }
-    // linhas de AVANÇO (x constante, rolando) — convergem ao fundo
-    const gs = 110;
+    ctx.lineWidth = 1;
+    // linhas de AVANÇO (x constante, rolando): grid do chão = LARGURA DE 1 BLOCO,
+    // então cada célula tem o tamanho de um inimigo. Convergem ao fundo.
+    const gs = FORMATION_CELL;
     const baseX = Math.floor(this.cameraX / gs) * gs;
     ctx.strokeStyle = "rgba(70,120,180,0.10)";
-    for (let k = -1; k < 16; k++) {
+    const cols = Math.ceil(VW / gs) + 6;
+    for (let k = -2; k < cols; k++) {
       const wx = baseX + k * gs;
       const bot = this.project(wx, WALL_BOT);
       const top = this.project(wx, WALL_TOP);
