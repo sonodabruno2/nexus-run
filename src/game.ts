@@ -1280,12 +1280,9 @@ export class World {
 
   // pondera as formas pela intensidade: cedo esparso, tarde paredão
   private pickShape(intensity: number): string {
-    const pool = intensity < 0.34
-      ? ["column", "block", "diag", "arrow", "checker"] // formas ORGANIZADAS (sem scatter disperso)
-      : intensity < 0.67
-        ? ["column", "block", "block", "checker", "wall", "diag"]
-        : ["wall", "wall", "block", "checker", "arrow", "wall"];
-    return rng.pick(pool);
+    // TESTE (pedido 2026-06-29): 6 inimigos por vez em bloco 100% AGRUPADO.
+    void intensity;
+    return "solid6";
   }
 
   // Gera uma formação de CUBOS no lado direito; estáticos no mundo, a fase
@@ -1305,6 +1302,14 @@ export class World {
     let place: (c: number, r: number) => boolean = () => true;
 
     switch (shape) {
+      case "solid6": {
+        // bloco CHEIO de exatamente 6 cubos (sem fendas), centrado nas 6 faixas
+        const [w, h] = rng.pick([[1, 6], [6, 1], [2, 3], [3, 2]]);
+        cols = w;
+        const start = Math.floor((rows - h) / 2);
+        place = (_c, r) => r >= start && r < start + h;
+        break;
+      }
       case "column": {
         // FASE INICIAL: colunas SÓLIDAS — cada coluna preenche as 6 fileiras,
         // cubos colados um no outro, organizados (sem fendas, sem dispersão).
@@ -1838,65 +1843,64 @@ export class World {
     }
   }
 
-  // cubo sólido em 2.5D (assenta no chão; topo sobe 2r), 1 bloco uniforme, com HP numerado
-  private drawCube(ctx: CanvasRenderingContext2D, e: Enemy, sx: number, sy: number, r: number, fade = 1) {
+  // BLOCO que ocupa EXATAMENTE a célula 38×38 do chão, extrudado pra cima →
+  // cubos vizinhos se encaixam (100% agrupados). Com HP numerado na face.
+  private drawCube(ctx: CanvasRenderingContext2D, e: Enemy, sx: number, _sy: number, r: number, fade = 1) {
     const flash = e.flash > 0;
-    const base = flash ? "#ffffff" : e.def.color;
-    // o cubo "se levanta" do chão: base em sy, sobe 2r
-    const bottom = sy;
-    const topf = sy - r * 2; // topo da face frontal
-    const dx = r * 0.5, dy = r * 0.55; // profundidade do cubo
-    if (fade >= 1) this.groundShadow(ctx, sx, bottom, r * 1.05, 0.3);
+    const shrink = e.dead ? 0.5 + 0.5 * fade : 1; // encolhe ao morrer
+    const hw = (FORMATION_CELL / 2) * shrink;     // meia-célula (mundo)
+    // 4 cantos do PISO da célula: f = frente (near, y+), b = fundo (far, y-)
+    const fL = this.project(e.x - hw, e.y + hw);
+    const fR = this.project(e.x + hw, e.y + hw);
+    const bL = this.project(e.x - hw, e.y - hw);
+    const bR = this.project(e.x + hw, e.y - hw);
+    const H = Math.max(r * 1.4, fR.sx - fL.sx); // altura ≈ largura → cubo
+    type P = { sx: number; sy: number };
+    const up = (p: P): P => ({ sx: p.sx, sy: p.sy - H });
+    const fLt = up(fL), fRt = up(fR), bLt = up(bL), bRt = up(bR);
+    const lerp2 = (a: P, b: P, t: number): P => ({ sx: a.sx + (b.sx - a.sx) * t, sy: a.sy + (b.sy - a.sy) * t });
+    const fp = (u: number, v: number): P => lerp2(lerp2(fLt, fRt, u), lerp2(fL, fR, u), v); // ponto na face frontal
+    const poly = (pts: P[], fill: string) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.moveTo(pts[0].sx, pts[0].sy);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].sx, pts[i].sy);
+      ctx.closePath(); ctx.fill();
+    };
+    if (fade >= 1) this.groundShadow(ctx, sx, fL.sy, (fR.sx - fL.sx) * 0.6, 0.3);
 
     ctx.save();
     ctx.globalAlpha = fade;
     // topo (mais claro)
-    ctx.fillStyle = flash ? "#ffffff" : shade(e.def.color, 1.45);
-    ctx.beginPath();
-    ctx.moveTo(sx - r, topf);
-    ctx.lineTo(sx - r + dx, topf - dy);
-    ctx.lineTo(sx + r + dx, topf - dy);
-    ctx.lineTo(sx + r, topf);
-    ctx.closePath(); ctx.fill();
-    // lateral direita (mais escura)
-    ctx.fillStyle = flash ? "#dddddd" : shade(e.def.color, 0.6);
-    ctx.beginPath();
-    ctx.moveTo(sx + r, topf);
-    ctx.lineTo(sx + r + dx, topf - dy);
-    ctx.lineTo(sx + r + dx, bottom - dy);
-    ctx.lineTo(sx + r, bottom);
-    ctx.closePath(); ctx.fill();
-    // face frontal
-    const g = ctx.createLinearGradient(0, topf, 0, bottom);
-    g.addColorStop(0, base);
+    poly([bLt, bRt, fRt, fLt], flash ? "#ffffff" : shade(e.def.color, 1.45));
+    // lateral VISÍVEL (a oposta ao ponto de fuga)
+    const colSide = flash ? "#dddddd" : shade(e.def.color, 0.6);
+    if (sx <= VW / 2) poly([fR, bR, bRt, fRt], colSide); // direita
+    else poly([bL, fL, fLt, bLt], colSide);              // esquerda
+    // face FRONTAL (gradiente) + contorno
+    const g = ctx.createLinearGradient(0, fLt.sy, 0, fL.sy);
+    g.addColorStop(0, flash ? "#ffffff" : e.def.color);
     g.addColorStop(1, flash ? "#cccccc" : shade(e.def.color, 0.78));
     ctx.fillStyle = g;
-    ctx.fillRect(sx - r, topf, r * 2, r * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1;
-    ctx.strokeRect(sx - r, topf, r * 2, r * 2);
-    // BAÚ: banda da tampa + fechadura brilhante (e brilho dourado pulsante)
+    ctx.beginPath();
+    ctx.moveTo(fL.sx, fL.sy); ctx.lineTo(fR.sx, fR.sy); ctx.lineTo(fRt.sx, fRt.sy); ctx.lineTo(fLt.sx, fLt.sy);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1; ctx.stroke();
+    if (e.dotDps > 0) poly([fL, fR, fRt, fLt], "rgba(124,255,142,0.35)");
+    // BAÚ: banda da tampa + fechadura brilhante
     if (e.def.id === "chest" && !e.dead) {
-      ctx.fillStyle = "#5a3d00"; ctx.fillRect(sx - r, topf + r * 0.5, r * 2, r * 0.28);
+      poly([fp(0, 0.42), fp(1, 0.42), fp(1, 0.66), fp(0, 0.66)], "#5a3d00");
+      const lock = fp(0.5, 0.58);
       ctx.fillStyle = "#fff2a8"; ctx.shadowColor = "#ffd65c"; ctx.shadowBlur = 8 + Math.sin(this.time * 6) * 4;
-      ctx.beginPath(); ctx.arc(sx, topf + r * 0.64, r * 0.16, 0, 6.28); ctx.fill();
+      ctx.beginPath(); ctx.arc(lock.sx, lock.sy, H * 0.08, 0, 6.28); ctx.fill();
       ctx.shadowBlur = 0;
-    }
-    if (e.dotDps > 0) { ctx.fillStyle = "rgba(124,255,142,0.35)"; ctx.fillRect(sx - r, topf, r * 2, r * 2); }
-    // HP na face (não em corpo morrendo) — baú mostra HP em cima, não no centro
-    if (e.def.id === "chest" && !e.dead) {
-      ctx.fillStyle = "#3a2800"; ctx.font = `bold ${Math.round(r * 0.6)}px system-ui`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, topf + r * 0.22);
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      ctx.restore();
-      return;
     }
     // HP na face (não em corpo morrendo)
     if (!e.dead) {
-      ctx.fillStyle = "#06080f";
-      ctx.font = `bold ${Math.round(r * 0.95)}px system-ui`;
+      const c = fp(0.5, e.def.id === "chest" ? 0.28 : 0.5);
+      ctx.fillStyle = e.def.id === "chest" ? "#3a2800" : "#06080f";
+      ctx.font = `bold ${Math.round(H * (e.def.id === "chest" ? 0.3 : 0.46))}px system-ui`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), sx, topf + r);
+      ctx.fillText(String(Math.max(1, Math.ceil(e.hp))), c.sx, c.sy);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
