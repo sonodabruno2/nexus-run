@@ -66,9 +66,11 @@ const zfy = () => VH * 0.56;
 // grande, embaixo). Mundo é plano (x = avanço, y = profundidade); só o
 // desenho projeta. Câmera inclinada olhando o corredor.
 const vanishX = () => VW / 2;
-const FAR_SCALE = 0.46; // escala no fundo
-const NEAR_Y = 516; // y de tela da faixa mais próxima
-const FAR_Y = 196; // y de tela da faixa mais ao fundo
+// Perspectiva GENTIL: faixa rasa na tela → cada célula do chão (38×38 mundo)
+// projeta ~quadrada (largura ≈ comprimento de um inimigo), organizada.
+const FAR_SCALE = 0.72; // escala no fundo (pouca redução = células uniformes)
+const NEAR_Y = 435; // y de tela da faixa mais próxima
+const FAR_Y = 225; // y de tela da faixa mais ao fundo
 const ZFAR = 1 / FAR_SCALE;
 const PROJ_C = (NEAR_Y - FAR_Y) / (1 - FAR_SCALE);
 const HORIZON = NEAR_Y - PROJ_C;
@@ -1676,7 +1678,7 @@ export class World {
       const ly = WALL_TOP + (WALL_BOT - WALL_TOP) * (i / rows);
       const a = this.project(0, ly);
       const edge = i === 0 || i === rows;
-      ctx.strokeStyle = edge ? `rgba(92,242,255,${0.30 + 0.35 * a.sc})` : `rgba(70,120,180,${0.06 + 0.14 * a.sc})`;
+      ctx.strokeStyle = edge ? `rgba(92,242,255,${0.30 + 0.35 * a.sc})` : `rgba(80,135,195,${0.12 + 0.18 * a.sc})`;
       ctx.lineWidth = edge ? 2 : 1;
       ctx.beginPath(); ctx.moveTo(0, a.sy); ctx.lineTo(VW, a.sy); ctx.stroke();
     }
@@ -1685,7 +1687,7 @@ export class World {
     // então cada célula tem o tamanho de um inimigo. Convergem ao fundo.
     const gs = FORMATION_CELL;
     const baseX = Math.floor(this.cameraX / gs) * gs;
-    ctx.strokeStyle = "rgba(70,120,180,0.10)";
+    ctx.strokeStyle = "rgba(80,135,195,0.16)";
     const cols = Math.ceil(VW / gs) + 6;
     for (let k = -2; k < cols; k++) {
       const wx = baseX + k * gs;
