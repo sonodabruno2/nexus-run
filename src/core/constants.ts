@@ -11,9 +11,10 @@ export const VH = 540;
 export let WALL_TOP = VH / 2 - (6 * 38) / 2;
 export let WALL_BOT = VH / 2 + (6 * 38) / 2;
 
-// ajusta a largura lógica ao aspecto atual (chamado no resize)
+// ajusta a largura lógica ao aspecto atual (chamado no resize). Faixa mais
+// ESTREITA (corredor menos largo na horizontal); telas largas ganham borda.
 export function setVW(w: number) {
-  VW = Math.round(Math.min(1700, Math.max(820, w)));
+  VW = Math.round(Math.min(880, Math.max(560, w)));
 }
 
 // dimensiona a faixa jogável (paredes) à altura dada, centrada em VH/2

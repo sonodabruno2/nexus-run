@@ -38,7 +38,7 @@ function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   // VH fixo; largura lógica acompanha o aspecto (clampada) → canvas com o mesmo
   // aspecto da janela = preenche a tela sem barras (só em aspectos extremos sobra borda).
-  const lw = Math.round(Math.min(1700, Math.max(820, VH * (winW / winH))));
+  const lw = Math.round(Math.min(880, Math.max(560, VH * (winW / winH))));
   setVW(lw);
   const scale = Math.min(winW / lw, winH / VH);
   const cssW = Math.round(lw * scale);
