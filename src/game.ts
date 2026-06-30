@@ -61,19 +61,16 @@ const ZOOM = 1.25;
 const zfx = () => VW * 0.38; // foco à esquerda → mantém o mech mais visível
 const zfy = () => VH * 0.56;
 
-// ---- Projeção em PERSPECTIVA (a faixa Y vira PROFUNDIDADE) ----
-// y=WALL_TOP = fundo (longe, pequeno, no alto); y=WALL_BOT = frente (perto,
-// grande, embaixo). Mundo é plano (x = avanço, y = profundidade); só o
-// desenho projeta. Câmera inclinada olhando o corredor.
-const vanishX = () => VW / 2;
-// Perspectiva GENTIL: faixa rasa na tela → cada célula do chão (38×38 mundo)
-// projeta ~quadrada (largura ≈ comprimento de um inimigo), organizada.
-const FAR_SCALE = 0.72; // escala no fundo (pouca redução = células uniformes)
-const NEAR_Y = 435; // y de tela da faixa mais próxima
-const FAR_Y = 225; // y de tela da faixa mais ao fundo
-const ZFAR = 1 / FAR_SCALE;
-const PROJ_C = (NEAR_Y - FAR_Y) / (1 - FAR_SCALE);
-const HORIZON = NEAR_Y - PROJ_C;
+// ---- Projeção ISOMÉTRICA (paralela, SEM perspectiva) ----
+// Mundo plano (x = avanço, y = profundidade) → tela por projeção oblíqua: sem
+// foreshortening, então cada inimigo é um CUBO 3D uniforme (não trapézio) que
+// encaixa exatamente na célula 38×38. y=WALL_TOP = fundo, y=WALL_BOT = frente.
+const ISO = 0.95;     // px de tela por unidade de mundo (escala fixa)
+const ISO_DX = 0.42;  // desloc. X de tela por unidade de PROFUNDIDADE (fundo → direita)
+const ISO_DY = -0.7;  // desloc. Y de tela por unidade de profundidade (fundo → cima)
+const ISO_OX = 64;    // origem X (tela) do mundo na posição da câmera
+const NEAR_Y = 472;   // Y de tela da faixa mais PRÓXIMA (frente, profundidade 0)
+const FAR_Y = 270;    // Y de tela da moldura do fundo (parede/chão decorativos)
 
 export type GameStatus = "playing" | "levelup" | "mechpick" | "gameover" | "win";
 
@@ -1620,24 +1617,18 @@ export class World {
     // HUD agora é DOM (pílulas flutuantes) — ver hud.ts
   }
 
-  // ---- Projeção em perspectiva: mundo (x avanço, y profundidade) → tela ----
+  // ---- Projeção ISOMÉTRICA (paralela): mundo (x avanço, y profundidade) → tela ----
   project(x: number, y: number): { sx: number; sy: number; sc: number } {
-    const t = clamp((y - WALL_TOP) / (WALL_BOT - WALL_TOP), 0, 1);
-    const z = ZFAR + t * (1 - ZFAR);
-    const sc = 1 / z;
-    const sy = HORIZON + PROJ_C * sc;
-    const vx = vanishX();
-    const sx = vx + (x - this.cameraX - vx) * sc;
-    return { sx, sy, sc };
+    const d = WALL_BOT - y; // 0 na frente, cresce em direção ao fundo
+    const sx = ISO_OX + (x - this.cameraX) * ISO + d * ISO_DX;
+    const sy = NEAR_Y + d * ISO_DY;
+    return { sx, sy, sc: ISO };
   }
-  // tela → mundo (pra mira do mouse)
+  // tela → mundo (pra mira do mouse) — inverso exato (x não afeta sy)
   unproject(sx: number, sy: number): { x: number; y: number } {
-    const sc = clamp((sy - HORIZON) / PROJ_C, FAR_SCALE * 0.8, 1);
-    const z = 1 / sc;
-    const t = clamp((z - ZFAR) / (1 - ZFAR), 0, 1);
-    const y = WALL_TOP + t * (WALL_BOT - WALL_TOP);
-    const vx = vanishX();
-    const x = this.cameraX + vx + (sx - vx) / sc;
+    const d = (sy - NEAR_Y) / ISO_DY;
+    const y = WALL_BOT - d;
+    const x = this.cameraX + (sx - ISO_OX - d * ISO_DX) / ISO;
     return { x, y };
   }
 
@@ -1872,10 +1863,10 @@ export class World {
     ctx.globalAlpha = fade;
     // topo (mais claro)
     poly([bLt, bRt, fRt, fLt], flash ? "#ffffff" : shade(e.def.color, 1.45));
-    // lateral VISÍVEL (a oposta ao ponto de fuga)
-    const colSide = flash ? "#dddddd" : shade(e.def.color, 0.6);
-    if (sx <= VW / 2) poly([fR, bR, bRt, fRt], colSide); // direita
-    else poly([bL, fL, fLt, bLt], colSide);              // esquerda
+    // lateral DIREITA visível (profundidade recua p/ cima-direita); a esquerda
+    // fica escondida atrás da face frontal (projeção oblíqua/cabinet).
+    void sx;
+    poly([fR, bR, bRt, fRt], flash ? "#dddddd" : shade(e.def.color, 0.6));
     // face FRONTAL (gradiente) + contorno
     const g = ctx.createLinearGradient(0, fLt.sy, 0, fL.sy);
     g.addColorStop(0, flash ? "#ffffff" : e.def.color);
